@@ -1,0 +1,36 @@
+name: Validate Content
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'people/**'
+      - 'shipped/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install gray-matter
+
+      - name: Validate frontmatter
+        run: node .github/scripts/validate.js
+
+      - name: Check content length
+        run: |
+          for file in $(find shipped -name "*.md" -type f); do
+            words=$(wc -w < "$file")
+            if [ "$words" -lt 50 ]; then
+              echo "Error: $file has only $words words (minimum 50)"
+              exit 1
+            fi
+          done
+          echo "All files pass minimum word count"

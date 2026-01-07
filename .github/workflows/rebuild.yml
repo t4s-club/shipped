@@ -1,0 +1,25 @@
+name: Trigger Rebuild
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'people/**'
+      - 'shipped/**'
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel rebuilds
+        run: |
+          echo "Triggering vibecoder.md rebuild..."
+          curl -X POST "${{ secrets.VERCEL_HOOK_VIBECODER }}" || true
+
+          echo "Triggering pages.md rebuild..."
+          curl -X POST "${{ secrets.VERCEL_HOOK_PAGES }}" || true
+
+          echo "Triggering shipped.md rebuild..."
+          curl -X POST "${{ secrets.VERCEL_HOOK_SHIPPED }}" || true
+
+          echo "All rebuilds triggered!"
