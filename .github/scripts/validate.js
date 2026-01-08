@@ -35,9 +35,14 @@ function validateShip(filePath) {
     }
   }
 
-  // Validate date format
-  if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
-    errors.push(`${filePath}: date must be in YYYY-MM-DD format`);
+  // Validate date format (YAML parses dates as Date objects)
+  if (data.date) {
+    const dateStr = data.date instanceof Date
+      ? data.date.toISOString().split('T')[0]
+      : String(data.date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      errors.push(`${filePath}: date must be in YYYY-MM-DD format`);
+    }
   }
 
   // Validate category
