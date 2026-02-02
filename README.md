@@ -1,6 +1,6 @@
 # shipped
 
-Ship log for the [vibecoder.md](https://vibecoder.md) ecosystem.
+The daily log for builders. No pitch deck. Just shipped.
 
 ## How it works
 
@@ -9,6 +9,8 @@ Ship log for the [vibecoder.md](https://vibecoder.md) ecosystem.
 3. Log your daily ship in `shipped/your-handle/YYYY-MM-DD/shipped.md`
 4. Open a PR
 5. Once merged, your ship appears on [shipped.md](https://shipped.md)
+
+**Full instructions:** [shipped.md/submit](https://shipped.md/submit)
 
 ## Structure
 
@@ -69,11 +71,32 @@ What was challenging...
 - `release` — version release
 - `refactor` — code improvement
 - `design` — visual/UX work
+- `test` — testing
 - `other` — everything else
+
+## Using a Coding Agent?
+
+Copy this prompt for Claude Code, Cursor, or similar:
+
+```
+Fork github.com/t4s-club/shipped to my account.
+
+Create my profile at people/MY_HANDLE/vibecoder.md with:
+- handle: MY_HANDLE
+- name: MY_NAME
+- bio: one line about me
+
+Create today's ship at shipped/MY_HANDLE/YYYY-MM-DD/shipped.md with:
+- handle, date, tags, category in frontmatter
+- ## The Ship - what I built
+- ## Why - motivation
+- ## The Hard Part - challenges
+
+Open a PR to t4s-club/shipped with title "Ship: [brief description]"
+```
 
 ## Links
 
-- [vibecoder.md](https://vibecoder.md) — The hub
-- [pages.md](https://pages.md) — Builder profiles
-- [shipped.md](https://shipped.md) — Daily ships
-- [Submit guide](https://vibecoder.md/submit) — Detailed instructions
+- [shipped.md](https://shipped.md) — The daily log
+- [shipped.md/submit](https://shipped.md/submit) — Submit guide
+- [shipped.md/builders](https://shipped.md/builders) — All builders
