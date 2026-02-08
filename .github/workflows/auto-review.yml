@@ -21,15 +21,20 @@ jobs:
       - name: Wait for validation
         run: |
           echo "Waiting for validate check to complete..."
+          # Wait a few seconds for the validate workflow to register
+          sleep 15
           for i in $(seq 1 30); do
-            STATUS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}/check-runs \
-              --jq '.check_runs[] | select(.name == "validate") | .conclusion' | tail -1)
-            echo "Attempt $i: validate status = $STATUS"
-            if [ "$STATUS" = "success" ]; then
+            # Get the most recent validate check run (sorted by started_at desc)
+            RESULT=$(gh api repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}/check-runs \
+              --jq '[.check_runs[] | select(.name == "validate")] | sort_by(.started_at) | last | {status: .status, conclusion: .conclusion}')
+            RUN_STATUS=$(echo "$RESULT" | jq -r '.status')
+            CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion')
+            echo "Attempt $i: status=$RUN_STATUS conclusion=$CONCLUSION"
+            if [ "$RUN_STATUS" = "completed" ] && [ "$CONCLUSION" = "success" ]; then
               echo "Validation passed!"
               exit 0
-            elif [ "$STATUS" = "failure" ]; then
-              echo "Validation failed, stopping."
+            elif [ "$RUN_STATUS" = "completed" ] && [ "$CONCLUSION" = "failure" ]; then
+              echo "Validation failed."
               exit 1
             fi
             sleep 10
