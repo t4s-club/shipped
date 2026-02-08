@@ -46,7 +46,7 @@ function validateShip(filePath) {
   }
 
   // Validate category
-  const validCategories = ['feature', 'fix', 'docs', 'release', 'refactor', 'design', 'other'];
+  const validCategories = ['feature', 'fix', 'docs', 'release', 'refactor', 'design', 'launch', 'other'];
   if (data.category && !validCategories.includes(data.category)) {
     errors.push(`${filePath}: invalid category '${data.category}'. Valid: ${validCategories.join(', ')}`);
   }
