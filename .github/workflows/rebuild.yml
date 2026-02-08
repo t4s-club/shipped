@@ -20,6 +20,10 @@ jobs:
           curl -X POST "${{ secrets.VERCEL_HOOK_PAGES }}" || true
 
           echo "Triggering shipped.md rebuild..."
-          curl -X POST "${{ secrets.VERCEL_HOOK_SHIPPED }}" || true
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.MONOREPO_PAT }}" \
+            https://api.github.com/repos/igindin/vibecoding/dispatches \
+            -d '{"event_type":"deploy-shipped"}' || true
 
           echo "All rebuilds triggered!"
