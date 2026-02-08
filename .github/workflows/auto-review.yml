@@ -47,17 +47,15 @@ jobs:
       - name: Extract PR diff
         id: diff
         run: |
-          DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep '\.md$' || true)
-          if [ -z "$DIFF" ]; then
+          # Get full diff and filter to .md files only
+          FULL_DIFF=$(gh pr diff ${{ github.event.pull_request.number }})
+          MD_FILES=$(echo "$FULL_DIFF" | grep '^diff --git' | grep '\.md' || true)
+          if [ -z "$MD_FILES" ]; then
             echo "No markdown files changed"
             echo "has_md=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           echo "has_md=true" >> $GITHUB_OUTPUT
-
-          # Get full diff of .md files only
-          FULL_DIFF=$(gh pr diff ${{ github.event.pull_request.number }} -- '*.md')
-          # Save to file to avoid shell escaping issues
           echo "$FULL_DIFF" > /tmp/pr_diff.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
