@@ -120,8 +120,9 @@ jobs:
         if: steps.diff.outputs.has_md == 'true' && steps.moderate.outputs.decision == 'approve'
         run: |
           echo "AI approved: ${{ steps.moderate.outputs.reason }}"
-          gh pr review ${{ github.event.pull_request.number }} --approve \
-            --body "Auto-approved by AI moderation: ${{ steps.moderate.outputs.reason }}"
+          # Add approval comment (can't use gh pr review --approve for own PRs)
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "**Auto-review: Approved** - ${{ steps.moderate.outputs.reason }}"
           gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GH_TOKEN: ${{ secrets.MONOREPO_PAT }}
