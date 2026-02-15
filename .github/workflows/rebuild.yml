@@ -31,19 +31,20 @@ jobs:
       handle: ${{ steps.meta.outputs.handle }}
       date: ${{ steps.meta.outputs.date }}
       category: ${{ steps.meta.outputs.category }}
-      url: ${{ steps.meta.outputs.url }}
       tags: ${{ steps.meta.outputs.tags }}
+      url: ${{ steps.meta.outputs.url }}
+      og_image: ${{ steps.meta.outputs.og_image }}
       preview: ${{ steps.meta.outputs.preview }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Extract ship metadata from changed files
+      - name: Extract ship metadata
         id: meta
         run: |
           # Find new/changed shipped.md files
-          CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'shipped/' | head -1)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'shipped/' | grep 'shipped\.md$' | head -1)
 
           if [ -z "$CHANGED" ]; then
             echo "No ship files changed"
@@ -51,38 +52,37 @@ jobs:
             exit 0
           fi
 
-          echo "Changed file: $CHANGED"
+          echo "Processing: $CHANGED"
 
           # Extract handle and date from path: shipped/{handle}/{date}/shipped.md
           HANDLE=$(echo "$CHANGED" | cut -d'/' -f2)
-          DATE_PART=$(echo "$CHANGED" | cut -d'/' -f3)
-          # Strip any slug suffix from date (e.g., 2026-02-13-feature -> 2026-02-13)
-          DATE=$(echo "$DATE_PART" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          DATE_DIR=$(echo "$CHANGED" | cut -d'/' -f3)
+          DATE=$(echo "$DATE_DIR" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
 
+          # Parse frontmatter with basic shell tools
+          TITLE=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^title:' | sed 's/^title: *//' | sed 's/^["'"'"']//;s/["'"'"']$//')
+          CATEGORY=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^category:' | sed 's/^category: *//')
+          TAGS=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^tags:' | sed 's/^tags: *\[//;s/\]//' | sed 's/, */ #/g;s/^/#/')
+
+          # Extract first 2 sentences from "## The Ship" section
+          PREVIEW=$(sed -n '/^## The Ship/,/^## /{/^## /!p;}' "$CHANGED" | sed '/^$/d' | head -3 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-280)
+
+          # Set outputs
           echo "handle=$HANDLE" >> $GITHUB_OUTPUT
           echo "date=$DATE" >> $GITHUB_OUTPUT
-
-          # Parse frontmatter with simple bash (no external deps)
-          CONTENT=$(cat "$CHANGED")
-
-          # Extract title from frontmatter
-          TITLE=$(echo "$CONTENT" | sed -n '/^---$/,/^---$/p' | grep '^title:' | sed 's/^title: *//' | sed 's/^"//' | sed 's/"$//')
-          echo "title=$TITLE" >> $GITHUB_OUTPUT
-
-          # Extract category
-          CATEGORY=$(echo "$CONTENT" | sed -n '/^---$/,/^---$/p' | grep '^category:' | sed 's/^category: *//')
           echo "category=$CATEGORY" >> $GITHUB_OUTPUT
-
-          # Extract tags
-          TAGS=$(echo "$CONTENT" | sed -n '/^---$/,/^---$/p' | grep '^tags:' | sed 's/^tags: *\[//' | sed 's/\]//' | sed 's/, */ /g')
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
-          # Extract preview (first 2 sentences of "The Ship" section)
-          PREVIEW=$(echo "$CONTENT" | sed -n '/^## The Ship$/,/^## /p' | grep -v '^##' | head -3 | tr '\n' ' ' | sed 's/  */ /g' | head -c 200)
-          echo "preview=$PREVIEW" >> $GITHUB_OUTPUT
-
-          # Build URL
           echo "url=https://shipped.md/$HANDLE/$DATE" >> $GITHUB_OUTPUT
+          echo "og_image=https://shipped.md/og/$HANDLE/$DATE.png" >> $GITHUB_OUTPUT
+
+          # Multiline outputs
+          echo "title<<EOF" >> $GITHUB_OUTPUT
+          echo "$TITLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "preview<<EOF" >> $GITHUB_OUTPUT
+          echo "$PREVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   notify-telegram:
     needs: [rebuild, extract-metadata]
@@ -91,9 +91,14 @@ jobs:
     steps:
       - name: Post to Telegram
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
         run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHANNEL_ID" ]; then
+            echo "Telegram secrets not configured, skipping"
+            exit 0
+          fi
+
           TITLE="${{ needs.extract-metadata.outputs.title }}"
           HANDLE="${{ needs.extract-metadata.outputs.handle }}"
           CATEGORY="${{ needs.extract-metadata.outputs.category }}"
@@ -101,36 +106,21 @@ jobs:
           TAGS="${{ needs.extract-metadata.outputs.tags }}"
           URL="${{ needs.extract-metadata.outputs.url }}"
 
-          # Format tags as hashtags
-          HASHTAGS=$(echo "$TAGS" | tr ' ' '\n' | sed 's/^/#/' | tr '\n' ' ')
+          TEXT="🚢 <b>${TITLE}</b>
 
-          # Build message
-          TEXT=$(cat <<EOF
-          🚢 <b>${TITLE}</b>
+by @${HANDLE} · ${CATEGORY}
 
-          by @${HANDLE} · ${CATEGORY}
+${PREVIEW}
 
-          ${PREVIEW}
+${TAGS}
 
-          ${HASHTAGS}
+→ <a href=\"${URL}\">${URL}</a>"
 
-          → ${URL}
-          EOF
-          )
-
-          # Remove leading whitespace from heredoc
-          TEXT=$(echo "$TEXT" | sed 's/^          //')
-
-          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHANNEL_ID" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
-              -d "parse_mode=HTML" \
-              -d "text=${TEXT}" \
-              -d "disable_web_page_preview=false" || true
-            echo "Telegram notification sent!"
-          else
-            echo "Telegram secrets not configured, skipping notification"
-          fi
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHANNEL_ID}" \
+            -d parse_mode="HTML" \
+            -d disable_web_page_preview="false" \
+            --data-urlencode "text=${TEXT}" || true
 
   # notify-twitter:
   #   needs: [rebuild, extract-metadata]
