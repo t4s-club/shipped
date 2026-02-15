@@ -27,3 +27,112 @@ jobs:
             -d '{"event_type":"deploy-shipped"}' || true
 
           echo "All rebuilds triggered!"
+
+  extract-metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      title: ${{ steps.meta.outputs.title }}
+      handle: ${{ steps.meta.outputs.handle }}
+      date: ${{ steps.meta.outputs.date }}
+      category: ${{ steps.meta.outputs.category }}
+      tags: ${{ steps.meta.outputs.tags }}
+      url: ${{ steps.meta.outputs.url }}
+      og_image: ${{ steps.meta.outputs.og_image }}
+      preview: ${{ steps.meta.outputs.preview }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Extract ship metadata
+        id: meta
+        run: |
+          # Find new/changed shipped.md files
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'shipped/' | grep 'shipped\.md$' | head -1)
+
+          if [ -z "$CHANGED" ]; then
+            echo "No ship files changed"
+            echo "title=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Processing: $CHANGED"
+
+          # Extract handle and date from path: shipped/{handle}/{date}/shipped.md
+          HANDLE=$(echo "$CHANGED" | cut -d'/' -f2)
+          DATE_DIR=$(echo "$CHANGED" | cut -d'/' -f3)
+          DATE=$(echo "$DATE_DIR" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+          # Parse frontmatter with basic shell tools
+          TITLE=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^title:' | sed 's/^title: *//' | sed 's/^["'"'"']//;s/["'"'"']$//')
+          CATEGORY=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^category:' | sed 's/^category: *//')
+          TAGS=$(sed -n '/^---$/,/^---$/p' "$CHANGED" | grep '^tags:' | sed 's/^tags: *\[//;s/\]//' | sed 's/, */ #/g;s/^/#/')
+
+          # Extract first 2 sentences from "## The Ship" section
+          PREVIEW=$(sed -n '/^## The Ship/,/^## /{/^## /!p;}' "$CHANGED" | sed '/^$/d' | head -3 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-280)
+
+          # Set outputs
+          echo "handle=$HANDLE" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "category=$CATEGORY" >> $GITHUB_OUTPUT
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "url=https://shipped.md/$HANDLE/$DATE" >> $GITHUB_OUTPUT
+          echo "og_image=https://shipped.md/og/$HANDLE/$DATE.png" >> $GITHUB_OUTPUT
+
+          # Multiline outputs
+          echo "title<<EOF" >> $GITHUB_OUTPUT
+          echo "$TITLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "preview<<EOF" >> $GITHUB_OUTPUT
+          echo "$PREVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  notify-telegram:
+    needs: [rebuild, extract-metadata]
+    if: needs.extract-metadata.outputs.title != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHANNEL_ID" ]; then
+            echo "Telegram secrets not configured, skipping"
+            exit 0
+          fi
+
+          TITLE="${{ needs.extract-metadata.outputs.title }}"
+          HANDLE="${{ needs.extract-metadata.outputs.handle }}"
+          CATEGORY="${{ needs.extract-metadata.outputs.category }}"
+          PREVIEW="${{ needs.extract-metadata.outputs.preview }}"
+          TAGS="${{ needs.extract-metadata.outputs.tags }}"
+          URL="${{ needs.extract-metadata.outputs.url }}"
+
+          TEXT="🚢 <b>${TITLE}</b>
+
+by @${HANDLE} · ${CATEGORY}
+
+${PREVIEW}
+
+${TAGS}
+
+→ <a href=\"${URL}\">${URL}</a>"
+
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHANNEL_ID}" \
+            -d parse_mode="HTML" \
+            -d disable_web_page_preview="false" \
+            --data-urlencode "text=${TEXT}" || true
+
+  # notify-twitter:
+  #   needs: [rebuild, extract-metadata]
+  #   if: needs.extract-metadata.outputs.title != ''
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Post to X/Twitter
+  #       # TODO: Implement with twitter-api-v2 via node script
+  #       # Needs secrets: TWITTER_API_KEY, TWITTER_API_SECRET,
+  #       #   TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+  #       run: echo "Twitter notification placeholder"
