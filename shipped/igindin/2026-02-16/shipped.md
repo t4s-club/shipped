@@ -31,3 +31,4 @@ Getting the tone right without it feeling manipulative. There's a fine line betw
 The competing alternatives section was tricky structurally. Tried it as a table first, then as cards, settled on a simple list with red X marks and one green checkmark at the bottom. The visual contrast does the persuasion — you don't need to read every line, you just see four failures and one solution. Had to be careful not to trash Dev.to or Hashnode directly — the framing is "still requires writing, still never happens" which is true without being hostile.
 
 Vercel deploy token was expired which added friction to the deploy cycle — had to fall back to `vercel deploy --prod` from local CLI while the GitHub Actions token gets refreshed.
+
