@@ -110,15 +110,19 @@ jobs:
           TAGS="${{ needs.extract-metadata.outputs.tags }}"
           URL="${{ needs.extract-metadata.outputs.url }}"
 
-          TEXT="🚢 <b>${TITLE}</b>
+          TEXT=$(cat <<MSGEOF
+          🚢 <b>${TITLE}</b>
 
-by @${HANDLE} · ${CATEGORY}
+          by @${HANDLE} · ${CATEGORY}
 
-${PREVIEW}
+          ${PREVIEW}
 
-${TAGS}
+          ${TAGS}
 
-→ <a href=\"${URL}\">${URL}</a>"
+          → <a href="${URL}">${URL}</a>
+          MSGEOF
+          )
+          TEXT=$(echo "$TEXT" | sed 's/^          //')
 
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d chat_id="${CHANNEL_ID}" \
