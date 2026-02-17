@@ -126,13 +126,4 @@ ${TAGS}
             -d disable_web_page_preview="false" \
             --data-urlencode "text=${TEXT}" || true
 
-  # notify-twitter:
-  #   needs: [rebuild, extract-metadata]
-  #   if: needs.extract-metadata.outputs.title != ''
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Post to X/Twitter
-  #       # TODO: Implement with twitter-api-v2 via node script
-  #       # Needs secrets: TWITTER_API_KEY, TWITTER_API_SECRET,
-  #       #   TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
-  #       run: echo "Twitter notification placeholder"
+  # TODO: notify-twitter job (needs twitter-api-v2 secrets)
