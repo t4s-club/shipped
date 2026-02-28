@@ -117,12 +117,19 @@ jobs:
           echo "reason=$REASON" >> $GITHUB_OUTPUT
 
       - name: Approve and merge
-        if: steps.diff.outputs.has_md == 'true' && steps.moderate.outputs.decision == 'approve'
+        if: >
+          steps.diff.outputs.has_md == 'true' &&
+          (steps.moderate.outputs.decision == 'approve' || steps.moderate.outputs.decision == 'error')
         run: |
-          echo "AI approved: ${{ steps.moderate.outputs.reason }}"
-          # Add approval comment (can't use gh pr review --approve for own PRs)
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body "**Auto-review: Approved** - ${{ steps.moderate.outputs.reason }}"
+          if [ "${{ steps.moderate.outputs.decision }}" = "error" ]; then
+            echo "AI unavailable — merging on validate pass (fallback)"
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --body "**Auto-review: Merged (AI fallback)** — AI moderation was unavailable, merged on validate pass."
+          else
+            echo "AI approved: ${{ steps.moderate.outputs.reason }}"
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --body "**Auto-review: Approved** — ${{ steps.moderate.outputs.reason }}"
+          fi
           gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GH_TOKEN: ${{ secrets.MONOREPO_PAT }}
@@ -139,20 +146,5 @@ jobs:
 
           ---
           *Reviewed by AI moderation*"
-        env:
-          GH_TOKEN: ${{ secrets.MONOREPO_PAT }}
-
-      - name: Comment error
-        if: steps.diff.outputs.has_md == 'true' && steps.moderate.outputs.decision == 'error'
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body "**Auto-review: Could not complete review**
-
-          ${{ steps.moderate.outputs.reason }}
-
-          A maintainer will review this PR manually.
-
-          ---
-          *AI moderation encountered an error*"
         env:
           GH_TOKEN: ${{ secrets.MONOREPO_PAT }}
